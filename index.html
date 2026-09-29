@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AION2 ダメージ計算ツール</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#0b0e12;--panel:#12171d;--panel2:#171d24;--line:#27303a;
+  --text:#d8dee6;--muted:#7f8a96;--white:#f4f6f8;
+  --accent:#62c4d8;--danger:#e47777;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:12px "Noto Sans JP",system-ui,sans-serif}
+button,input{font:inherit}
+.header{padding:14px 20px;border-bottom:1px solid var(--line);text-align:center}
+.header h1{font-size:22px;color:var(--white);letter-spacing:.08em}
+.header p{margin-top:3px;color:var(--muted);font-size:10px}
+.guide{border-bottom:1px solid var(--line);background:#0e1318}
+.guide summary{cursor:pointer;padding:9px 20px;color:var(--accent);font-weight:700}
+.guide-body{padding:8px 20px 14px;display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.guide h3{font-size:11px;color:var(--accent);margin-bottom:4px}
+.guide p{font-size:10px;line-height:1.7;color:var(--muted)}
+.layout{display:grid;grid-template-columns:340px 1fr;min-height:calc(100vh - 55px)}
+.left{border-right:1px solid var(--line);background:var(--panel);overflow:auto}
+.right{padding:12px;overflow:auto}
+.section-title{padding:9px 12px 6px;border-bottom:1px solid var(--line);font-weight:700;color:var(--white)}
+.group-title{padding:7px 12px 3px;color:var(--muted);font-size:10px;border-bottom:1px solid #1d242b}
+.row{padding:6px 12px;border-bottom:1px solid #1d242b}
+.label{color:var(--text);margin-bottom:2px}
+.note{font-size:9px;color:var(--muted);line-height:1.45;margin-bottom:4px}
+.control{display:flex;gap:5px;align-items:center}
+input[type=range]{flex:1;height:3px;accent-color:var(--accent)}
+.value{width:62px;background:#0c1014;border:1px solid var(--line);color:var(--white);padding:3px;text-align:right}
+.step{width:20px;height:20px;background:var(--panel2);border:1px solid var(--line);color:var(--muted);cursor:pointer}
+.step:hover{border-color:var(--accent);color:var(--accent)}
+.preset{padding:8px 12px;border-bottom:1px solid var(--line)}
+.preset button{margin:3px 3px 0 0;padding:4px 7px;background:var(--panel2);border:1px solid var(--line);color:var(--text);cursor:pointer}
+.preset button:hover{border-color:var(--accent)}
+.reset{margin:10px 12px;padding:5px 12px;background:none;border:1px solid var(--line);color:var(--muted);cursor:pointer}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:8px}
+.card{background:var(--panel);border:1px solid var(--line);padding:8px;text-align:center}
+.card .k{font-size:9px;color:var(--muted)}
+.card .v{font-size:17px;font-weight:700;color:var(--accent);margin-top:2px}
+.panel{background:var(--panel);border:1px solid var(--line);margin-bottom:8px;padding:9px 11px}
+.panel-title{font-weight:700;color:var(--accent);margin-bottom:6px}
+.formula{font-family:ui-monospace,Consolas,monospace;color:var(--muted);font-size:10px;line-height:1.8}
+.formula b{color:var(--text)}
+.tabs{display:flex;border-bottom:1px solid var(--line)}
+.tabs button{padding:6px 14px;background:none;border:0;color:var(--muted);cursor:pointer}
+.tabs button.active{color:var(--accent);border-bottom:2px solid var(--accent)}
+.tab{display:none}.tab.active{display:block}
+.axis{display:flex;gap:5px;flex-wrap:wrap;padding:7px;background:var(--panel)}
+.axis button{padding:3px 7px;background:var(--panel2);border:1px solid var(--line);color:var(--muted);cursor:pointer}
+.axis button.active{border-color:var(--accent);color:var(--accent)}
+.chart{height:300px;background:var(--panel);padding:8px}
+.table-wrap{max-height:380px;overflow:auto;background:var(--panel);border:1px solid var(--line)}
+table{width:100%;border-collapse:collapse;font-size:10px}
+th,td{padding:5px 6px;border-bottom:1px solid #1d242b;text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{position:sticky;top:0;background:#0d1116;color:var(--muted)}
+.highlight{background:#162128}
+.rank-row{display:flex;align-items:center;gap:7px;margin:5px 0}
+.rank-no{width:20px;color:var(--muted)}
+.rank-name{width:190px}
+.rank-gain{width:125px;text-align:right;color:var(--accent)}
+.rank-bar{flex:1;height:4px;background:var(--line)}
+.rank-fill{height:100%;background:var(--accent)}
+.small{font-size:9px;color:var(--muted)}
+@media(max-width:900px){
+ .layout{grid-template-columns:1fr}.left{max-height:none;border-right:0;border-bottom:1px solid var(--line)}
+ .guide-body{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+<header class="header">
+  <h1>AION2 — DAMAGE CALCULATOR</h1>
+  <p>実測・解析式ベース / 攻撃力・武器ダメージ増幅・貫通・各種ダメージ増幅・クリティカル・強打・完璧</p>
+</header>
+
+<details class="guide" open>
+<summary>使い方 / 計算モデル</summary>
+<div class="guide-body">
+  <div><h3>攻撃力</h3><p>実攻撃力 = (装備攻撃力×(1+武器ダメージ増幅)+基本攻撃力)×(1+攻撃力%) + PVE/PVP攻撃力。</p></div>
+  <div><h3>スキルダメージ</h3><p>実攻撃力×スキル係数 + スキル固定値 − (防御力×防御力補正−貫通)/10。貫通はスキル1回につき1回適用。</p></div>
+  <div><h3>倍率</h3><p>一般/PVE/ボス/種族のダメージ増幅は同じ加算領域。後方・属性などの独立倍率は別入力として乗算。</p></div>
+</div>
+</details>
+
+<div class="layout">
+<aside class="left">
+  <div class="section-title">攻撃側</div>
+  <div class="group-title">攻撃力</div>
+
+  <div id="atkRows"></div>
+
+  <div class="group-title">スキル</div>
+  <div id="skillRows"></div>
+
+  <div class="group-title">確率・特殊攻撃</div>
+  <div id="specialRows"></div>
+
+  <div class="group-title">ダメージ増幅</div>
+  <div id="ampRows"></div>
+
+  <div class="section-title">防御側</div>
+  <div class="group-title">防御・耐性</div>
+  <div id="defRows"></div>
+
+  <div class="preset">
+    <div class="small">防御プリセット</div>
+    <button onclick="preset(0)">軽装</button>
+    <button onclick="preset(1)">標準</button>
+    <button onclick="preset(2)">高防御</button>
+    <button onclick="preset(3)">ボス</button>
+  </div>
+  <button class="reset" onclick="resetAll()">リセット</button>
+</aside>
+
+<main class="right">
+  <div class="cards">
+    <div class="card"><div class="k">実攻撃力</div><div class="v" id="outAtk">—</div></div>
+    <div class="card"><div class="k">全hit期待値</div><div class="v" id="outMulti">—</div></div>
+    <div class="card"><div class="k">通常 1hit</div><div class="v" id="outNormal">—</div></div>
+    <div class="card"><div class="k">クリティカル</div><div class="v" id="outCrit">—</div></div>
+    <div class="card"><div class="k">強打</div><div class="v" id="outSmite">—</div></div>
+    <div class="card"><div class="k">クリ+強打</div><div class="v" id="outCritSmite">—</div></div>
+    <div class="card"><div class="k">1hit期待値</div><div class="v" id="outExp">—</div></div>
+    <div class="card"><div class="k">クリ率 / 強打率</div><div class="v" id="outRates">—</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">現在の計算式</div>
+    <div class="formula" id="formula"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">効率ランキング-攻撃視点</div>
+    <div class="small">各ステータスを一定量増やしたときの全hit期待値の増加量。</div>
+    <div id="ranking"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">効率ランキング-防御視点-整備中</div>
+    <div class="small">各ステータスを一定量増やしたときの全hit期待値の増加量。</div>
+    <div id="ranking-def"></div>
+  </div>
+  
+  <div id="tab-table" class="tab">
+    <div class="axis" id="tableAxis"></div>
+    <div class="table-wrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">注意</div>
+    <div class="small">
+      AION2は公式に完全な内部式を公開していないため、攻撃力・貫通・防御・増幅・クリティカル・強打等は2025〜2026年の韓国/台湾ユーザー実測・解析に基づくモデルです。
+      特に「ステータス値 → クリティカル率/強打率」の完全な変換式と、多段ヒットの追加ダメージは資料上まだ不確定なため、この版では確率を直接入力します。
+    </div>
+  </div>
+</main>
+</div>
+
+<script>
+const S={
+  equipmentAtk:400, weaponAmp:30, baseAtk:500, atkPct:10, pvePvpAtk:0,
+  skillCoeff:100, skillFixed:0, hits:1,
+  accuracy:200, critChance:50, critAttack:100, critDmg:20,
+  smiteChance:30, perfectChance:10,multihit:20,
+  dmgAmp:15, pveDmgAmp:15, bossDmgAmp:0, raceDmgAmp:0,
+  rearAmp:0, elementAmp:0,
+  defense:1000, defenseMod:100, penetration:500,
+  dmgRes:6, pveDmgRes:6, bossDmgRes:0, raceDmgRes:0,
+  rearRes:0, elementRes:0
+};
+
+const META={
+ equipmentAtk:{label:'装備攻撃力',min:0,max:10000,step:10,group:'atk',note:'装備から得られる攻撃力'},
+ weaponAmp:{label:'武器ダメージ増幅 (%)',min:0,max:100,step:1,group:'atk',note:'装備攻撃力にのみ適用'},
+ baseAtk:{label:'基本攻撃力',min:0,max:5000,step:10,group:'atk',note:'ディーバニオンボード等の追加攻撃力を含む'},
+ atkPct:{label:'攻撃力 (%)',min:0,max:200,step:1,group:'atk',note:'攻撃力%の合計'},
+ pvePvpAtk:{label:'PVE/PVP攻撃力',min:0,max:3000,step:10,group:'atk',note:'実攻撃力の最後に加算'},
+ skillCoeff:{label:'スキル係数 (%)',min:0,max:5000,step:1,group:'skill',note:'例 46.95% → 46.95'},
+ skillFixed:{label:'スキル固定ダメージ',min:0,max:10000,step:10,group:'skill',note:'スキルレベル由来の固定値'},
+ hits:{label:'ヒット数',min:1,max:20,step:1,group:'skill',note:'この版では同一1hit期待値をhit数分加算'},
+ accuracy:{label:'命中',min:0,max:1000,step:1,group:'atk',note:'命中'},
+ critChance:{label:'クリティカル率 (%)',min:0,max:100,step:1,group:'special',note:'完全なステータス→確率式が未確定のため直接入力'},
+ critAttack:{label:'クリティカル攻撃力',min:0,max:2000,step:1,group:'special',note:'クリティカル式の追加攻撃力'},
+ critDmg:{label:'クリティカルダメージ増幅 (%)',min:0,max:100,step:1,group:'special',note:'150% + 追加値'},
+ smiteChance:{label:'強打率 (%)',min:0,max:100,step:1,group:'special',note:'強打(DOUBLE)は基本2倍'},
+ multihit:{label:'多段ヒット (%)',min:0,max:100,step:1,group:'special',note:'多段ヒット 検証が不明確のため発生率/5のDPS増加とする。'},
+ perfectChance:{label:'完璧率 (%)',min:0,max:100,step:1,group:'special',note:'完璧時は攻撃力最大値を使うモデル。現在は補助的に表示'},
+ dmgAmp:{label:'ダメージ増幅 (%)',min:0,max:100,step:1,group:'amp',note:'PVE/ボス/種族と同一加算領域'},
+ pveDmgAmp:{label:'PVEダメージ増幅 (%)',min:0,max:100,step:1,group:'amp',note:'一般ダメージ増幅と加算'},
+ bossDmgAmp:{label:'ボスダメージ増幅 (%)',min:0,max:100,step:1,group:'amp',note:'ボス限定。一般/PVEと加算'},
+ raceDmgAmp:{label:'種族ダメージ増幅 (%)',min:0,max:100,step:1,group:'amp',note:'一般/PVE/ボスと同じ加算領域'},
+ rearAmp:{label:'後方ダメージ増幅 (%)',min:0,max:100,step:1,group:'amp',note:'独立倍率として乗算'},
+ elementAmp:{label:'属性ダメージ増幅 (%)',min:0,max:100,step:1,group:'amp',note:'独立倍率として乗算'},
+ defense:{label:'防御力',min:0,max:10000,step:10,group:'def',note:'防御力の1/10をスキルダメージから減算'},
+ defenseMod:{label:'防御力増減 (%)',min:0,max:200,step:1,group:'def',note:'防御力×防御力補正。100%が標準'},
+ penetration:{label:'貫通',min:0,max:5000,step:10,group:'def',note:'1/10が固定ダメージ。スキル1回につき1回'},
+ dmgRes:{label:'ダメージ耐性 (%)',min:0,max:100,step:1,group:'def',note:'ダメージ増幅と加算相殺'},
+ pveDmgRes:{label:'PVEダメージ耐性 (%)',min:0,max:100,step:1,group:'def',note:'PVE増幅と加算相殺'},
+ bossDmgRes:{label:'ボスダメージ耐性 (%)',min:0,max:100,step:1,group:'def',note:'ボス増幅と加算相殺'},
+ raceDmgRes:{label:'種族ダメージ耐性 (%)',min:0,max:100,step:1,group:'def',note:'種族増幅と加算相殺'},
+ rearRes:{label:'後方ダメージ耐性 (%)',min:0,max:100,step:1,group:'def',note:'後方倍率の相殺'},
+ elementRes:{label:'属性耐性 (%)',min:0,max:100,step:1,group:'def',note:'属性倍率の相殺'}
+};
+
+function fmt(n){return Math.round(n).toLocaleString('ja-JP')}
+function pct(n){return n.toFixed(1)+'%'}
+
+function makeRow(key){
+  const m=META[key], wrap=document.createElement('div'); wrap.className='row';
+  wrap.innerHTML=`<div class="label">${m.label}</div><div class="note">${m.note}</div>
+  <div class="control"><input id="${key}" type="range" min="${m.min}" max="${m.max}" step="${m.step}" value="${S[key]}">
+  <button class="step" onclick="change('${key}',-${m.step})">−</button>
+  <input class="value" id="${key}V" type="number" value="${S[key]}">
+  <button class="step" onclick="change('${key}',${m.step})">＋</button></div>`;
+  return wrap;
+}
+function build(){
+  for(const key of Object.keys(META)){
+    const target={atk:'atkRows',skill:'skillRows',special:'specialRows',amp:'ampRows',def:'defRows'}[META[key].group];
+    document.getElementById(target).appendChild(makeRow(key));
+    document.getElementById(key).addEventListener('input',()=>setVal(key,document.getElementById(key).value));
+    document.getElementById(key+'V').addEventListener('input',()=>setVal(key,document.getElementById(key+'V').value));
+  }
+}
+function setVal(k,v){
+	rankHoseiFlg = 0;
+	ADVS=structuredClone(changes);
+  const m=META[k]; let x=Number(v); if(!Number.isFinite(x))x=m.min;
+  x=Math.max(m.min,Math.min(m.max,x)); S[k]=x;
+  document.getElementById(k).value=x; document.getElementById(k+'V').value=x;
+  render();
+}
+
+function change(k,d){
+	setVal(k,S[k]+d)
+}
+function resetAll(){
+  Object.assign(S,{equipmentAtk:200,weaponAmp:0,baseAtk:500,atkPct:75,pvePvpAtk:0,skillCoeff:100,skillFixed:0,hits:1,critChance:80,critAttack:100,critDmg:20,smiteChance:30,perfectChance:10,dmgAmp:15,pveDmgAmp:15,bossDmgAmp:0,raceDmgAmp:0,rearAmp:0,elementAmp:0,defense:3000,defenseMod:100,penetration:500,dmgRes:6,pveDmgRes:6,bossDmgRes:0,raceDmgRes:0,rearRes:0,elementRes:0});
+  for(const k of Object.keys(META)){document.getElementById(k).value=S[k];document.getElementById(k+'V').value=S[k]}
+  render();
+}
+const PRESETS=[
+ {defense:1500,dmgRes:3,pveDmgRes:3,bossDmgRes:0,penetration:0},
+ {defense:3000,dmgRes:6,pveDmgRes:6,bossDmgRes:0,penetration:500},
+ {defense:5000,dmgRes:10,pveDmgRes:10,bossDmgRes:5,penetration:500},
+ {defense:7000,dmgRes:12,pveDmgRes:12,bossDmgRes:6,penetration:700}
+];
+function preset(i){Object.assign(S,PRESETS[i]);for(const k of Object.keys(PRESETS[i])){document.getElementById(k).value=S[k];document.getElementById(k+'V').value=S[k]}render()}
+
+function calc(p){
+  // 1. 実攻撃力
+  const actualAtk=(p.equipmentAtk*(1+p.weaponAmp/100)+p.baseAtk)*(1+p.atkPct/100)+p.pvePvpAtk;
+  const cliActualAtk=actualAtk + p.critAttack;
+
+  // 2. スキル生ダメージ。係数は%入力。
+  const skill=actualAtk*(p.skillCoeff/100)+p.skillFixed;
+  const cliSkill=cliActualAtk*(p.skillCoeff/100)+p.skillFixed;
+
+  // 3. 防御/貫通。貫通は1/10が固定値として1スキル1回。
+  //const raw=Math.max(0,skill-(p.defense*(p.defenseMod/100))/10+p.penetration);
+  const baseDmg=Math.max(0,skill-(p.defense*(p.defenseMod/100))/10)+p.penetration/10;
+  const cliBaseDmg=Math.max(0,cliSkill-(p.defense*(p.defenseMod/100))/10)+p.penetration/10;
+
+  // 4. 一般/PVE/ボス/種族は加算領域
+  const amp=1+(p.dmgAmp+p.pveDmgAmp+p.bossDmgAmp+p.raceDmgAmp-p.dmgRes-p.pveDmgRes-p.bossDmgRes-p.raceDmgRes)/100;
+
+  // 5. 後方/属性は独立倍率
+  const independent=Math.max(0,1+(p.rearAmp-p.rearRes)/100)*Math.max(0,1+(p.elementAmp-p.elementRes)/100);
+
+  // 暫定:マルチヒット処理
+  const raw = baseDmg * (1+p.multihit/100/5)
+  const cliRaw = cliBaseDmg * (1+p.multihit/100/5)
+  
+  const normal=raw*amp*independent;
+
+  // 6. クリティカル式
+  // [基本ダメージ + クリティカル攻撃力*(1+増幅合計)] × (1.5+クリダメ増幅)
+  const crit=cliRaw*amp*(1.5+p.critDmg/100)*independent;
+
+  // 7. 強打は2倍
+  const smite=normal*2;
+  const critSmite=crit*2;
+
+  const cp=p.critChance/100, sp=p.smiteChance/100;
+  const exp=normal*(1-cp)*(1-sp)+crit*cp*(1-sp)+smite*(1-cp)*sp+critSmite*cp*sp;
+  const multi=exp*p.hits;
+
+  return {actualAtk,cliActualAtk,skill,baseDmg,raw,cliRaw,amp,independent,normal,crit,smite,critSmite,cp,sp,exp,multi};
+}
+
+const AXES={
+ dmgAmp:['ダメージ増幅',0,100,10],pveDmgAmp:['PVE増幅',0,100,10],bossDmgAmp:['ボス増幅',0,100,10],
+ raceDmgAmp:['種族増幅',0,100,10],critChance:['クリ率',0,100,10],critDmg:['クリダメ',0,100,10],
+ smiteChance:['強打率',0,100,10],equipmentAtk:['装備攻撃力',0,6000,10],weaponAmp:['武器ダメ増幅',0,100,10],
+ defense:['防御力',0,8000,10],penetration:['貫通',0,3000,10],skillCoeff:['スキル係数',0,10000,10],hits:['ヒット数',1,10,1]
+};
+let chartAxis='dmgAmp',tableAxis='dmgAmp',chartObj=null;
+
+function axisButtons(id,active,fn){
+ const el=document.getElementById(id);el.innerHTML='';
+ Object.entries(AXES).forEach(([k,v])=>{const b=document.createElement('button');b.textContent=v[0];b.className=k===active?'active':'';b.onclick=()=>fn(k);el.appendChild(b)});
+}
+
+// 効率ランキング処理
+ const changes=[
+  ['equipmentAtk',10], // 装備攻撃力
+  ['weaponAmp',8.35], // 武器ダメ増幅
+  ['baseAtk',45], // 基本攻撃力
+  ['atkPct',5], // 攻撃力(%)
+  ['dmgAmp',6,3], // ダメージ増幅
+  ['pveDmgAmp',5], // PVE増幅
+  ['bossDmgAmp',1], // ボス増幅
+  ['raceDmgAmp',5], // 種族増幅
+  ['critChance',5], // クリ率
+  ['critDmg',10], // クリダメ
+  ['smiteChance',5], // 強打率
+  ['critAttack',90], // クリティカル攻撃力
+  ['multihit',8.3], // マルチヒット(%)
+ ];
+ let ADVS=structuredClone(changes);
+ const changesD=[
+  ['defense',10],
+ // ['defenseMod',10],
+ // ['dmgRes',10],
+ // ['pveDmgRes',10],
+ // ['bossDmgRes',10],
+ // ['raceDmgRes',10],
+ // ['weaponAmp',10],
+ // ['elementRes',10]
+ ];
+ let ADVSD=structuredClone(changesD);
+ order = null;
+ rankHoseiFlg = 0;
+ orderD = null;
+ rankHoseiFlgD = 0;
+
+function rank(){
+ const base=calc(S).multi;
+ let rows=ADVS.map(([k,d])=>{const p={...S,[k]:Math.max(META[k].min,Math.min(META[k].max,S[k]+d))};return {k,g:calc(p).multi-base,d}});
+
+  // 並び順を保持
+  if (rankHoseiFlg  === 0) {
+    rows.sort((a,b)=>b.g-a.g);
+	order = structuredClone(rows);
+  } else {
+	  rows.sort((a, b) => {
+	  return order.findIndex(x => x.k === a.k)
+	       - order.findIndex(x => x.k === b.k);
+	});
+  }
+ 
+ const mx=Math.max(...rows.map(x=>x.g),1);
+ document.getElementById('ranking').innerHTML=rows.map((r,i)=>
+ `<div class="rank-row">
+ <button class="sb" onclick="rankHosei('${r.k}', -1)">−</button>
+ <span class="rank-no">${i+1}</span><span class="rank-name">${META[r.k].label} ${r.d>0?'+':''}${r.d}</span>
+ <button class="sb" onclick="rankHosei('${r.k}', 1)">+</button>
+ <span class="rank-gain">+${fmt(r.g)}(${(r.g / base * 100).toFixed(2)}%)</span>
+ <span class="rank-bar"><span class="rank-fill" style="display:block;width:${Math.min(100,r.g/mx*100)}%"></span></span>
+ </div>`).join('');
+}
+
+
+function rankD(){
+ const base=calc(S).multi;
+ let rows=ADVSD.map(([k,d])=>{const p={...S,[k]:Math.max(META[k].min,Math.min(META[k].max,S[k]+d))};return {k,g:calc(p).multi-base,d}});
+
+  // 並び順を保持
+  console.log(rankHoseiFlgD);
+  if (rankHoseiFlgD  === 0) {
+    rows.sort((a,b)=>a.g-b.g);
+	orderD = structuredClone(rows);
+  } else {
+	  rows.sort((a, b) => {
+	  return orderD.findIndex(x => x.k === a.k)
+	       - orderD.findIndex(x => x.k === b.k);
+	});
+  }
+ 
+ const mx=Math.max(...rows.map(x=>x.g),1);
+ document.getElementById('ranking-def').innerHTML=rows.map((r,i)=>
+ `<div class="rank-row">
+ <button class="sb" onclick="rankHoseiD('${r.k}', -1)">−</button>
+ <span class="rank-no">${i+1}</span><span class="rank-name">${META[r.k].label} ${r.d>0?'+':''}${r.d}</span>
+ <button class="sb" onclick="rankHoseiD('${r.k}', 1)">+</button>
+ <span class="rank-gain">${fmt(r.g)}</span>
+ <span class="rank-bar"><span class="rank-fill" style="display:block;width:${Math.min(100,r.g/mx*100)}%"></span></span>
+ </div>`).join('');
+}
+
+function rankHosei(id, val) {
+    rankHoseiFlg = 1;
+	const adv = ADVS.find(x => x[0] === id);
+	if (adv[1] + val === 0) {
+	   return;
+	}
+	adv[1] = adv[1] + val;
+    rank();
+}
+function rankHoseiD(id, val) {
+    rankHoseiFlgD = 1;
+	const adv = ADVSD.find(x => x[0] === id);
+	if (adv[1] + val === 0) {
+	   return;
+	}
+	adv[1] = adv[1] + val;
+    rankD();
+}
+
+function render(){
+ const r=calc(S);
+ document.getElementById('outAtk').textContent=fmt(r.actualAtk);
+ document.getElementById('outNormal').textContent=fmt(r.normal);
+ document.getElementById('outCrit').textContent=fmt(r.crit);
+ document.getElementById('outSmite').textContent=fmt(r.smite);
+ document.getElementById('outCritSmite').textContent=fmt(r.critSmite);
+ document.getElementById('outExp').textContent=fmt(r.exp);
+ document.getElementById('outMulti').textContent=fmt(r.multi);
+ document.getElementById('outRates').textContent=`${pct(S.critChance)} / ${pct(S.smiteChance)}`;
+ document.getElementById('formula').innerHTML=
+  `<b>実攻撃力</b> = (${fmt(S.equipmentAtk)} × (1 + ${S.weaponAmp}%) + ${fmt(S.baseAtk)}) × (1 + ${S.atkPct}%) + ${fmt(S.pvePvpAtk)} = <b>${fmt(r.actualAtk)}</b><br>`+
+  `<b>クリティカル攻撃力</b> = ${fmt(r.actualAtk)} + ${fmt(S.critAttack)} = <b>${fmt(r.cliActualAtk)}</b></b><br>`+
+  `<b>スキル</b> = ${fmt(r.actualAtk)} × ${S.skillCoeff}% + ${fmt(S.skillFixed)} = ${fmt(r.skill)}<br>`+
+  `<b>防御後</b> = Math.max(${fmt(r.skill)} − (${fmt(S.defense)} × ${S.defenseMod}% / 10),0) + ${fmt(S.penetration)} / 10 = ${fmt(r.baseDmg)}<br>`+
+  `<b>増幅</b> = 1 + (${S.dmgAmp}+${S.pveDmgAmp}+${S.bossDmgAmp}+${S.raceDmgAmp} − ${S.dmgRes}−${S.pveDmgRes}−${S.bossDmgRes}−${S.raceDmgRes})% = ${r.amp.toFixed(3)}<br>`+
+  `<b>通常</b> = ${fmt(r.raw)} × ${r.amp.toFixed(3)} × ${r.independent.toFixed(3)} = <b>${fmt(r.normal)}</b><br>`+
+  `<b>クリ</b> = ${fmt(r.cliRaw)} × ${r.amp.toFixed(3)} × (150% + ${S.critDmg}%) × 独立倍率 = <b>${fmt(r.crit)}</b><br>`+
+  `<b>強打</b> = 通常 × 2 / <b>クリ+強打</b> = クリ × 2`;
+ rank();rankD();
+}
+function tab(id,b){document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.getElementById('tab-'+id).classList.add('active');if(id==='chart'&&chartObj)chartObj.resize()}
+build();render();
+</script>
+</body>
+</html>
